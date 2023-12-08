@@ -60,7 +60,7 @@ class DesertMap:
             if not temp_node:
                 continue
             temp_node_map[temp_node.node.value] = temp_node
-            if not root_node:
+            if not root_node and temp_node.node.value == 'AAA':
                 root_node = temp_node.node
 
         if not root_node:
@@ -83,7 +83,7 @@ class DesertMap:
                 if curr_node.value == 'ZZZ':
                     print('Found ZZZ!')
                     return steps
-                if steps >= 1000:
+                if steps >= 100000:
                     raise RuntimeError('Ah shite')
                 
                 last_node = curr_node
