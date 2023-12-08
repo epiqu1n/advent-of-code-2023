@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from io import TextIOWrapper
 from operator import itemgetter
-from pprint import pprint
 import re
-from typing import Self
+from typing import Self, cast
+from math import lcm
 
 @dataclass
 class Node:
@@ -20,7 +20,7 @@ class TempNode:
 @dataclass
 class DesertMap:
     instructions: list[str]
-    root_node: Node
+    start_nodes: list[Node]
     __node_regex = r'(?P<node_value>\w{3}) = \((?P<left_value>\w{3}), (?P<right_value>\w{3})\)'
 
     @staticmethod
@@ -45,11 +45,19 @@ class DesertMap:
     @staticmethod
     def __parse_instructions(text: str) -> list[str]:
         return list(text.strip())
+    
+    @staticmethod
+    def is_start_node(node: Node) -> bool:
+        return node.value[-1] == 'A'
+    
+    @staticmethod
+    def is_end_node(node: Node) -> bool:
+        return node.value[-1] == 'Z'
 
     @staticmethod
     def parse_map_from_file(file: TextIOWrapper) -> 'DesertMap':
         temp_node_map: dict[str, TempNode] = { }
-        root_node: Node | None = None
+        start_nodes: list[Node] = []
 
         # Get instructions from first line
         instructions = DesertMap.__parse_instructions(file.readline())
@@ -59,51 +67,56 @@ class DesertMap:
             temp_node = DesertMap.__parse_temp_node(line)
             if not temp_node:
                 continue
-            temp_node_map[temp_node.node.value] = temp_node
-            if not root_node and temp_node.node.value == 'AAA':
-                root_node = temp_node.node
+            actual_node = temp_node.node
+            temp_node_map[actual_node.value] = temp_node
+            if DesertMap.is_start_node(actual_node):
+                start_nodes.append(actual_node)
 
-        if not root_node:
+        if len(start_nodes) == 0:
             raise RuntimeError('No nodes could be found in the given file')
 
         # Now go back and establish actual node links
         for temp_node in temp_node_map.values():
             DesertMap.__link_node(temp_node, temp_node_map)
 
-        return DesertMap(instructions, root_node)
+        return DesertMap(instructions, start_nodes)
 
-    def traverse_to_zzz(self) -> int:
-        """Traverses the node tree using the instructions, returning the number of steps to reach 'ZZZ'"""
-        def traverse_with_instructions(from_node: Node, step_count: int = 0) -> int:
-            steps = step_count
-            curr_node: Node | None = from_node
+    @staticmethod
+    def check_all_node_ends_found(node_final_steps: list[int]) -> bool:
+        for steps in node_final_steps:
+            if steps == -1:
+                return False
+        return True
+
+    def wacky_traversal(self) -> list[int]:
+        """
+        Traverses the node tree using the instructions,returning the number of steps
+        to simulateously reach each end node from each starting node
+        """
+        steps = 0
+        curr_nodes: list[Node] = self.start_nodes
+        node_final_steps: list[int] = [ -1 for _ in curr_nodes ]
+        while True:
             for instruction in self.instructions:
-                if not curr_node:
-                    raise RuntimeError('No current node')
-                if curr_node.value == 'ZZZ':
-                    print('Found ZZZ!')
-                    return steps
-                if steps >= 100000:
+                if DesertMap.check_all_node_ends_found(node_final_steps):
+                    print('Found all end nodes!')
+                    return node_final_steps
+                if steps >= 100000000:
                     raise RuntimeError('Ah shite')
                 
-                last_node = curr_node
-                curr_node = curr_node.left if instruction == 'L' else curr_node.right
+                for idx, node in enumerate(curr_nodes):
+                    if node_final_steps[idx] == -1 and DesertMap.is_end_node(node):
+                        node_final_steps[idx] = steps
+                    curr_nodes[idx] = cast(Node, node.left if instruction == 'L' else node.right)
+                
                 steps += 1
-                print(f'Step {steps}: Traversing {"left" if instruction == "L" else "right"} from {last_node.value} to {curr_node.value}') # type: ignore -- logging
-
-            if not curr_node:
-                raise RuntimeError('No current node')
-            
-            return traverse_with_instructions(curr_node, steps)
         
-        return traverse_with_instructions(self.root_node)
 
 def main():
     with open('resources/day_8_values.txt', encoding='utf8') as file:
         desert_map = DesertMap.parse_map_from_file(file)
-        pprint(desert_map.instructions)
-        step_count = desert_map.traverse_to_zzz()
-        print(f'Step count: {step_count}')
+        step_counts = desert_map.wacky_traversal()
+        print(f'Step count: {lcm(*step_counts)}')
 
 if __name__ == '__main__':
     main()
